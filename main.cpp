@@ -8,6 +8,7 @@
 #include <cstring>
 #include <complex>
 #include <fftw3.h>
+#include <cmath>
 
 #include "lock_free_queue.h"
 
@@ -49,20 +50,34 @@ fftw_complex* out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * FFT_Size 
 fftw_plan plan = fftw_plan_many_dft(1, &FFT_Size, Signal_Cnt, in, NULL, 1, FFT_Size, out, NULL, 1, FFT_Size, FFTW_FORWARD, FFTW_ESTIMATE);
 
 LockFreeQueue<MmwDemo_message> *pgQueue;  // 创建队列对象
+std::vector<double> hanning_win;
 
+std::vector<double> generateHanningWindow(int size) {
+    std::vector<double> hanningWindow(size);
+    for (int i = 0; i < size; ++i) {
+        hanningWindow[i] = 0.5 * (1 - std::cos(2 * M_PI * i / (size - 1)));
+    }
+    return hanningWindow;
+}
 
-void fftComplute(std::array<std::complex<double>, ARRAY_SIZE/4> arrayIn) {
+void fftCompute(
+    const std::array<std::complex<double>, ARRAY_SIZE / 4>& arrayIn,
+    const std::vector<double>& hanningWindow
+) {
     for (int m = 0; m < Signal_Cnt; ++m) {
         for (int n = 0; n < FFT_Size; ++n) {
-            // 示例复数信号：实部和虚部分别是正弦和余弦
-            in[m * FFT_Size + n][0] = arrayIn[m * ADCSampleSize + n].real();  // 实部
-            in[m * FFT_Size + n][1] = arrayIn[m * ADCSampleSize + n].imag();  // 虚部
+            // 应用 Hanning 窗
+            double realPart = arrayIn[m * ADCSampleSize + n].real() * hanningWindow[n];
+            double imagPart = arrayIn[m * ADCSampleSize + n].imag() * hanningWindow[n];
+
+            // 填充 FFTW 的输入数组
+            in[m * FFT_Size + n][0] = realPart; // 实部
+            in[m * FFT_Size + n][1] = imagPart; // 虚部
         }
     }
 
     // 执行傅里叶变换
     fftw_execute(plan);
-
 }
 
 
@@ -98,7 +113,7 @@ void performComplexOperation() {
     trigger = false;
     // 模拟复杂操作
     auto dataCplx = parseDataArray(dataArrayGo);
-    fftComplute(dataCplx);
+    fftCompute(dataCplx, hanning_win);
 
     std::array<std::complex<double>, 32*128*12> dataTrans{};
     // 数据排列 32*128*12*2(Real/Imag)
@@ -197,6 +212,8 @@ int main() {
 
     pgQueue = new LockFreeQueue<MmwDemo_message_t>("shared_queue",10);
     pgQueue->clear();
+
+    hanning_win = generateHanningWindow(128);
 
     std::thread listenerThread([&io_service]() { udpListener(io_service); });
     std::thread processorThread(dataProcessor);
