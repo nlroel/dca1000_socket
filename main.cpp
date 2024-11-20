@@ -12,6 +12,7 @@
 
 #include "lock_free_queue_peek.h"
 #include "mmw_message.h"
+#include "file_handle.h"
 
 #define PACK( __Declaration__ ) __Declaration__ __attribute__((__packed__))
 
@@ -50,6 +51,7 @@ fftw_complex* out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * FFT_Size 
 // 创建 FFTW 计划
 fftw_plan plan = fftw_plan_many_dft(1, &FFT_Size, Signal_Cnt, in, NULL, 1, FFT_Size, out, NULL, 1, FFT_Size, FFTW_FORWARD, FFTW_ESTIMATE);
 
+FileHandle* gFile_handle;
 LockFreeQueue<MmwDemo_message> *pgQueue;  // 创建队列对象
 std::vector<double> hanning_win;
 
@@ -158,6 +160,10 @@ void udpListener(boost::asio::io_service& io_service) {
 
     std::cout << "Listening for UDP packets on " << LISTEN_IP_ADDRESS << ":" << PORT << "\n";
 
+    std::string base_folder_path = "./";
+    std::string write_filename = generateTimestampedFileName("adc_raw_data_", ".bin");
+    gFile_handle = new FileHandle(write_filename, base_folder_path);
+
     while (true) {
         packet_t packet;
         udp::endpoint senderEndpoint;
@@ -186,12 +192,16 @@ void udpListener(boost::asio::io_service& io_service) {
                 if (currIndex + fitBytes == ARRAY_SIZE) {
                     std::memcpy(dataArrayGo.data(), dataArray.data(), dataArray.size());
                     trigger = true;
+                    gFile_handle->open(std::ios::out | std::ios::app | std::ios::binary);
+                    gFile_handle->write(reinterpret_cast<const char*>(dataArrayGo.data()), sizeof(uint8_t) * dataArrayGo.size());
+                    gFile_handle->close();
                 }
                 // dataArray.fill(0);
                 std::memcpy(dataArray.data(), packet.payload+fitBytes, remainBytes);
             } else {
                 std::memcpy(dataArray.data()+currIndex, packet.payload, remainBytes);
             }
+
             cond_var.notify_one();  // 通知 dataProcessor 执行复杂操作
         } else {
             std::cerr << "Received incomplete packet.\n";
@@ -233,6 +243,9 @@ int main() {
     fftw_destroy_plan(plan);
     fftw_free(in);
     fftw_free(out);
+
+    delete pgQueue;
+    delete gFile_handle;
 
     return 0;
 }

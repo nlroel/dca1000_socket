@@ -3,7 +3,7 @@ project(dca1000_socket)
 
 set(CMAKE_CXX_STANDARD 23)
 
-add_executable(dca1000_socket main.cpp)
+add_executable(dca1000_socket main.cpp file_handle.cpp)
 
 target_link_libraries(dca1000_socket
         boost_system
