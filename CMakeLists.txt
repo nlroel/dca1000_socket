@@ -12,11 +12,15 @@ target_link_libraries(dca1000_socket
         rt)
 
 
-
+add_executable(test_lock_free_queue test_lock_free_queue_peak.cpp)
+target_link_libraries(test_lock_free_queue rt)
 
 
 SET(PYTHON_EXECUTABLE /home/lroel/tool/miniconda3/envs/mmw/bin/python3.10)
 add_subdirectory(extern/pybind11)
 include_directories(extern/pybind11/include)
-pybind11_add_module(lock_free_queue lock_free_queue_pybind.cpp lock_free_queue.h)
+pybind11_add_module(lock_free_queue lock_free_queue_pybind.cpp)
 target_link_libraries(lock_free_queue PUBLIC rt)
+
+
+

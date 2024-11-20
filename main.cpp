@@ -10,7 +10,8 @@
 #include <fftw3.h>
 #include <cmath>
 
-#include "lock_free_queue.h"
+#include "lock_free_queue_peek.h"
+#include "mmw_message.h"
 
 #define PACK( __Declaration__ ) __Declaration__ __attribute__((__packed__))
 
@@ -133,7 +134,7 @@ void performComplexOperation() {
     memcpy(message.data, dataTrans.data(), sizeof(dataTrans));
 
     // 入队
-    if (pgQueue->enqueue(message)) {
+    if (pgQueue->enqueue_with_overwrite(message)) {
         std::cout << "Enqueued message " << std::endl;
     } else {
         std::cout << "Queue is full, unable to enqueue message " << std::endl;
@@ -210,7 +211,7 @@ void dataProcessor() {
 int main() {
     boost::asio::io_service io_service;
 
-    pgQueue = new LockFreeQueue<MmwDemo_message_t>("shared_queue",10);
+    pgQueue = new LockFreeQueue<MmwDemo_message>("shared_queue",10);
     pgQueue->clear();
 
     hanning_win = generateHanningWindow(128);
